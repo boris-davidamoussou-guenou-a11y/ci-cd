@@ -1,0 +1,82 @@
+name: CI/CD for iOS
+
+on:
+  # 1. Déclenche le "build" sur les push vers main ou les Pull Requests
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+      
+  # 2. Permet de déclencher le "deploy" manuellement
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout repository
+      # Utilise la v4, plus récente
+      uses: actions/checkout@v4 
+
+    - name: Set up Xcode
+      # Utilise l'action maintenue par la communauté
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.2' # Assurez-vous que cette version existe sur les runners
+
+    - name: Install dependencies
+      run: |
+        bundle install
+        bundle exec fastlane install_plugins
+        
+    - name: Build and test
+      run: bundle exec fastlane build_and_test # Ce lane doit générer le .ipa
+      
+    - name: Upload Artifact (le .ipa)
+      # Sauvegarde le .ipa pour le job de déploiement
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-ipa
+        path: output/YourApp.ipa # <-- IMPORTANT: Mettez le chemin vers votre .ipa généré par Fastlane
+
+# --- Job de déploiement ---
+
+  deploy:
+    name: Deploy to App Store
+    
+    # NE S'EXÉCUTE QUE :
+    # 1. Si on l'a déclenché manuellement (workflow_dispatch)
+    # 2. ET si le job "build-and-test" a réussi
+    if: github.event_name == 'workflow_dispatch'
+    needs: build-and-test # <-- LA CORRECTION LA PLUS IMPORTANTE
+    
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '16.2'
+
+    - name: Install dependencies
+      run: |
+        bundle install
+        bundle exec fastlane install_plugins
+        
+    - name: Download Artifact (le .ipa)
+      # Récupère le .ipa du job précédent
+      uses: actions/download-artifact@v4
+      with:
+        name: app-ipa
+        path: output/ # On le met dans un dossier 'output'
+
+    - name: Deploy to App Store
+      # Ce lane doit juste prendre le .ipa et l'envoyer
+      run: bundle exec fastlane deploy_to_app_store
