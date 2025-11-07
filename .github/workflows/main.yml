@@ -16,6 +16,9 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: macos-latest
+    env:
+        # AJOUTE CETTE LIGNE POUR CORRIGER LE TIMEOUT
+        FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT: 30
 
     steps:
     - name: Checkout repository
